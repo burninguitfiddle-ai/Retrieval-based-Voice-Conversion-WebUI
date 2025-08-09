@@ -8,7 +8,9 @@ import soundfile as sf
 import torch
 from io import BytesIO
 
-from infer.lib.audio import load_audio, wav2
+import librosa
+
+from infer.lib.audio import wav2
 from infer.lib.infer_pack.models import (
     SynthesizerTrnMs256NSFsid,
     SynthesizerTrnMs256NSFsid_nono,
@@ -162,7 +164,8 @@ class VC:
             return "You need to upload an audio", None
         f0_up_key = int(f0_up_key)
         try:
-            audio = load_audio(input_audio_path, 16000)
+            audio, _ = librosa.load(input_audio_path, sr=16000, mono=False)
+            audio = np.asarray(audio)
             audio_max = np.abs(audio).max() / 0.95
             if audio_max > 1:
                 audio /= audio_max
@@ -185,26 +188,56 @@ class VC:
             else:
                 file_index = ""  # 防止小白写错，自动帮他替换掉
 
-            audio_opt = self.pipeline.pipeline(
-                self.hubert_model,
-                self.net_g,
-                sid,
-                audio,
-                input_audio_path,
-                times,
-                f0_up_key,
-                f0_method,
-                file_index,
-                index_rate,
-                self.if_f0,
-                filter_radius,
-                self.tgt_sr,
-                resample_sr,
-                rms_mix_rate,
-                self.version,
-                protect,
-                f0_file,
-            )
+            if audio.ndim == 1:
+                audio_opt = self.pipeline.pipeline(
+                    self.hubert_model,
+                    self.net_g,
+                    sid,
+                    audio,
+                    input_audio_path,
+                    times,
+                    f0_up_key,
+                    f0_method,
+                    file_index,
+                    index_rate,
+                    self.if_f0,
+                    filter_radius,
+                    self.tgt_sr,
+                    resample_sr,
+                    rms_mix_rate,
+                    self.version,
+                    protect,
+                    f0_file,
+                )
+            else:
+                opts = []
+                times_list = []
+                for ch in audio:
+                    t_ch = [0, 0, 0]
+                    opt = self.pipeline.pipeline(
+                        self.hubert_model,
+                        self.net_g,
+                        sid,
+                        ch,
+                        input_audio_path,
+                        t_ch,
+                        f0_up_key,
+                        f0_method,
+                        file_index,
+                        index_rate,
+                        self.if_f0,
+                        filter_radius,
+                        self.tgt_sr,
+                        resample_sr,
+                        rms_mix_rate,
+                        self.version,
+                        protect,
+                        f0_file,
+                    )
+                    opts.append(opt)
+                    times_list.append(t_ch)
+                audio_opt = np.stack(opts, axis=1)
+                times = [sum(t[i] for t in times_list) for i in range(3)]
             if self.tgt_sr != resample_sr >= 16000:
                 tgt_sr = resample_sr
             else:
