@@ -298,6 +298,8 @@ class Pipeline(object):
         version,
         protect,
         f0_file=None,
+        pre_pitch=None,
+        pre_pitchf=None,
     ):
         if (
             file_index != ""
@@ -351,23 +353,29 @@ class Pipeline(object):
         sid = torch.tensor(sid, device=self.device).unsqueeze(0).long()
         pitch, pitchf = None, None
         if if_f0 == 1:
-            pitch, pitchf = self.get_f0(
-                input_audio_path,
-                audio_pad,
-                p_len,
-                f0_up_key,
-                f0_method,
-                filter_radius,
-                inp_f0,
-            )
+            if pre_pitch is None or pre_pitchf is None:
+                pitch, pitchf = self.get_f0(
+                    input_audio_path,
+                    audio_pad,
+                    p_len,
+                    f0_up_key,
+                    f0_method,
+                    filter_radius,
+                    inp_f0,
+                )
+                t2 = ttime()
+                times[1] += t2 - t1
+            else:
+                pitch, pitchf = pre_pitch, pre_pitchf
             pitch = pitch[:p_len]
             pitchf = pitchf[:p_len]
             if "mps" not in str(self.device) or "xpu" not in str(self.device):
                 pitchf = pitchf.astype(np.float32)
             pitch = torch.tensor(pitch, device=self.device).unsqueeze(0).long()
             pitchf = torch.tensor(pitchf, device=self.device).unsqueeze(0).float()
-        t2 = ttime()
-        times[1] += t2 - t1
+        else:
+            t2 = ttime()
+            times[1] += t2 - t1
         for t in opt_ts:
             t = t // self.window * self.window
             if if_f0 == 1:

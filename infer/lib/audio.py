@@ -30,26 +30,42 @@ def wav2(i, o, format):
     inp.close()
 
 
-def load_audio(file, sr):
+def load_audio(file, sr, mono=True):
     try:
         # https://github.com/openai/whisper/blob/main/whisper/audio.py#L26
-        # This launches a subprocess to decode audio while down-mixing and resampling as necessary.
-        # Requires the ffmpeg CLI and `ffmpeg-python` package to be installed.
+        # This launches a subprocess to decode audio while optionally down-mixing
+        # and resampling as necessary. Requires the ffmpeg CLI and `ffmpeg-python`
+        # package to be installed.
         file = clean_path(file)  # 防止小白拷路径头尾带了空格和"和回车
         if os.path.exists(file) == False:
             raise RuntimeError(
                 "You input a wrong audio path that does not exists, please fix it!"
             )
-        out, _ = (
-            ffmpeg.input(file, threads=0)
-            .output("-", format="f32le", acodec="pcm_f32le", ac=1, ar=sr)
-            .run(cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True)
+        inp = ffmpeg.input(file, threads=0)
+        if mono:
+            stream = inp.output(
+                "-", format="f32le", acodec="pcm_f32le", ac=1, ar=sr
+            )
+        else:
+            stream = inp.output(
+                "-", format="f32le", acodec="pcm_f32le", ar=sr
+            )
+        out, _ = stream.run(
+            cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True
         )
     except Exception as e:
         traceback.print_exc()
         raise RuntimeError(f"Failed to load audio: {e}")
 
-    return np.frombuffer(out, np.float32).flatten()
+    audio = np.frombuffer(out, np.float32)
+    if mono:
+        return audio.flatten()
+    else:
+        try:
+            ch = int(ffmpeg.probe(file)["streams"][0]["channels"])
+        except Exception:
+            ch = 1
+        return audio.reshape(-1, ch).T
 
 
 

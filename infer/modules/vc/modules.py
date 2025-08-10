@@ -9,6 +9,7 @@ import torch
 from io import BytesIO
 
 import librosa
+from time import time as ttime
 
 from infer.lib.audio import wav2
 from infer.lib.infer_pack.models import (
@@ -210,6 +211,23 @@ class VC:
                     f0_file,
                 )
             else:
+                mix = np.mean(audio, axis=0)
+                t_pitch = ttime()
+                mix_pad = np.pad(
+                    mix, (self.pipeline.t_pad, self.pipeline.t_pad), mode="reflect"
+                )
+                p_len = mix_pad.shape[0] // self.pipeline.window
+                pitch, pitchf = self.pipeline.get_f0(
+                    input_audio_path,
+                    mix_pad,
+                    p_len,
+                    f0_up_key,
+                    f0_method,
+                    filter_radius,
+                )
+                pitch = pitch[:p_len]
+                pitchf = pitchf[:p_len]
+                t_pitch = ttime() - t_pitch
                 opts = []
                 times_list = []
                 for ch in audio:
@@ -233,11 +251,14 @@ class VC:
                         self.version,
                         protect,
                         f0_file,
+                        pitch,
+                        pitchf,
                     )
                     opts.append(opt)
                     times_list.append(t_ch)
                 audio_opt = np.stack(opts, axis=1)
                 times = [sum(t[i] for t in times_list) for i in range(3)]
+                times[1] += t_pitch
             if self.tgt_sr != resample_sr >= 16000:
                 tgt_sr = resample_sr
             else:
