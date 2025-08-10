@@ -942,7 +942,8 @@ with gr.Blocks(title="RVC WebUI") as app:
                         with gr.Row():
                             vc_output1 = gr.Textbox(label=i18n("输出信息"))
                             vc_output2 = gr.Audio(
-                                label=i18n("输出音频(右下角三个点,点了可以下载)")
+                                label=i18n("输出音频(右下角三个点,点了可以下载)"),
+                                type="numpy",
                             )
 
                         but0.click(
